@@ -1,5 +1,5 @@
 # ImageMover
-This is created for personal use only. Use is at your own risk.
+This is created for personal use only. Use it at your own risk.
 
 Observer a directory for new files. If the file is an image or a movie it will automatically be renamed and copied to an organized folder structure. 
 
