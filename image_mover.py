@@ -18,6 +18,7 @@ import Queue
 import external
 import uuid
 import re
+import shutil
 
 class ImageMover(pyinotify.ProcessEvent):
     def __init__(self):
@@ -86,7 +87,7 @@ class ImageMover(pyinotify.ProcessEvent):
 		    converted_name = '{}.mp4'.format(file_name)
                     with tempfile.NamedTemporaryFile(delete = False, suffix = '.mp4') as temp_file:
 		        external.call('ffmpeg', '-i', source_file, '-vcodec', 'copy', '-acodec', 'copy', '-map_metadata', '0', '-y', temp_file.name).assert_status(0)
-                        os.rename(temp_file.name, converted_name)
+                        shutil.move(temp_file.name, converted_name)
                         os.remove(source_file)
 		    return
                 else:
@@ -108,10 +109,11 @@ class ImageMover(pyinotify.ProcessEvent):
                     external.call('ffmpeg', '-i', source_file, '-map_metadata', '0', '-vf', scale, '{}_{}'.format(destination, extension)) 
 
                 logging.debug("Moved from {} to {}".format(source_file, '{}{}'.format(destination, extension)))
-                os.rename(source_file, '{}{}'.format(destination, extension))
+                shutil.move(source_file, '{}{}'.format(destination, extension))
 
         except Exception as ex:
             logging.warning(ex.message)
+            logging.warning(ex)
     
     def _get_new_name_from_exif(self, source_file):
         try:
