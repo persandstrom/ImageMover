@@ -33,6 +33,7 @@ class Result(object):
 
 def call(*command):
     """ Call external application """
+    print(list(command))
     pipe = subprocess.Popen(
         list(command),
         stdout=subprocess.PIPE,

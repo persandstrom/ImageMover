@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-import MediaInfoDLL
 import time
-import ConfigParser
+from  configparser import RawConfigParser
 import os
 import threading
 import logging
@@ -10,15 +9,44 @@ import dateutil.parser
 import dateutil.tz
 import tempfile
 from PIL import Image
-import  MediaInfoDLL
 import pyinotify
-import Queue
+from queue import Queue
 import external
 import re
 import shutil
+from pymediainfo import MediaInfo
+import jsonpath
+import json
+
+class VideoInfo(object):
+    def __init__(self, source_file):
+        self.json = json.loads(MediaInfo.parse(source_file).to_json())
+
+    def general(self, prop):
+        return self.get("$.tracks[?(@.track_type == 'General')]." + prop)
+    
+    def video(self, prop):
+        return self.get("$.tracks[?(@.track_type == 'Video')]." + prop)
+
+    def get(self, jpath):
+        val = jsonpath.jsonpath(
+            self.json,
+            jpath)
+        return val[0] if val and len(val) else False 
+
+
+def validate_requirement(application):
+    try:
+        external.call('which', application).assert_status(0)
+    except external.Error:
+        logging.error('missing required application: ' + application)
+        raise Exception('missing required application: ' + application)
+
 
 class ImageMover(pyinotify.ProcessEvent):
     def __init__(self):
+
+
         self.path = os.path.dirname(os.path.realpath(__file__))
         self._parse_config(os.path.join(self.path, 'image_mover.cfg'))
         logging.basicConfig(
@@ -29,10 +57,10 @@ class ImageMover(pyinotify.ProcessEvent):
         logging.info('Application started')
         self._expand_home_directory_in_config()
         self.lock = threading.Lock()
-        self.queue = Queue.Queue()
+        self.queue = Queue()
 
     def _parse_config(self, config_file_path):
-        parser = ConfigParser.ConfigParser()
+        parser = RawConfigParser()
         parser.read(config_file_path)
         options = parser.options('Options')
         for option in options:
@@ -44,14 +72,13 @@ class ImageMover(pyinotify.ProcessEvent):
         self.to_path = self.to_path.replace('~', home_path)
 
     def start(self):
-        self._validate()
-        self._start_observing_from_directory()
-
-    def _validate(self):
+        validate_requirement('ffmpeg')
+        validate_requirement('mediainfo')
         if not os.path.isdir(self.from_path):
             raise Exception('From directory, %s, not found' % self.from_path)
         if not os.path.isdir(self.to_path):
             raise Exception('To directory, %s, not found' % self.to_path)
+        self._start_observing_from_directory()
 
     def _start_observing_from_directory(self):
         wm = pyinotify.WatchManager()
@@ -120,7 +147,9 @@ class ImageMover(pyinotify.ProcessEvent):
                     logging.debug("Creating low res version of %s", source_file)
                     size = _get_video_size(source_file)
                     scale = 'scale=320:-2' if size[0] < size[1] else 'scale=-2:320'
-                    external.call('ffmpeg', '-i', source_file, '-map_metadata', '0', '-vf', scale, '{}_{}'.format(destination, extension))
+                    external.call('ffmpeg', '-y', '-i', source_file, 
+                                  '-map_metadata', '0', '-vf', scale,
+                                  '{}_{}'.format(destination, extension))
 
                 logging.debug("Moved from %s to %s%s", source_file, destination, extension)
                 os.rename(source_file, '{}{}'.format(destination, extension))
@@ -137,51 +166,32 @@ class ImageMover(pyinotify.ProcessEvent):
             shot_date = dateutil.parser.parse(date_string)
             return shot_date.strftime(self.file_format)
         except Exception as ex:
-            logging.warning('%s: %s', source_file, ex.message)
+            logging.warning('%s: %s', source_file, ex)
             return None
 
     def _get_new_name_from_video_metadata(self, source_file):
         try:
-            media_info = MediaInfoDLL.MediaInfo()
-            media_info.Open(source_file)
-            shot_date = None
-            date_string = media_info.Get(
-                MediaInfoDLL.Stream.General, 0, u'Recorded_Date')
-            if date_string:
-                shot_date = dateutil.parser.parse(date_string)
-            else:
-                date_string = media_info.Get(
-                    MediaInfoDLL.Stream.General, 0, u'Encoded_Date')[4:]
-                if date_string:
-                    shot_date = dateutil.parser.parse(
-                        date_string
-                        ).replace(
-                            tzinfo=dateutil.tz.tzutc()
-                            ).astimezone(dateutil.tz.tzlocal())
-            media_info.Close()
-            if not date_string:
+            video_info = VideoInfo(source_file)
+            shot_string = video_info.video('recorded_date')
+            if not shot_string:
+                shot_string = video_info.video('encoded_date')
+            if not shot_string:
+                logging.warning('%s: %s', source_file, "failed to get date")
                 return None
+            shot_date = dateutil.parser.parse(shot_string.replace('UTC ', ''))
+            shot_date = shot_date.replace(tzinfo=dateutil.tz.tzutc())
+            shot_date = shot_date.astimezone(dateutil.tz.tzlocal())
             return shot_date.strftime(self.file_format)
         except Exception as ex:
             logging.warning('%s: %s', source_file, ex)
             return None
 
 def _get_video_size(source_file):
-    media_info = MediaInfoDLL.MediaInfo()
-    media_info.Open(source_file)
-    non_numbers = re.compile(r'[^\d]+')
-    size = (
-        int(non_numbers.sub(
-            '',
-            media_info.Get(MediaInfoDLL.Stream.Video, 0, u'Width'))),
-        int(non_numbers.sub(
-            '',
-            media_info.Get(MediaInfoDLL.Stream.Video, 0, u'Height')))
-        )
-    rotation = media_info.Get(MediaInfoDLL.Stream.Video, 0, u'Rotation')
-    if rotation and ('90' in rotation or '270' in rotation):
+    video_info = VideoInfo(source_file)
+    size = (video_info.video('width'), video_info.video('height'))
+    rotation = video_info.video('rotation')
+    if rotation and (rotation == 90 or rotation == 270):
         size = (size[1], size[0])
-    media_info.Close()
     return size
 
 
