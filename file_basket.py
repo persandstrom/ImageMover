@@ -48,7 +48,7 @@ class ImageMover(pyinotify.ProcessEvent):
 
 
         self.path = os.path.dirname(os.path.realpath(__file__))
-        self._parse_config(os.path.join(self.path, 'image_mover.cfg'))
+        self._parse_config(os.path.join(self.path, 'file_basket.cfg'))
         logging.basicConfig(
             filename=os.path.join(self.path, self.log_file),
             level=int(self.log_level),

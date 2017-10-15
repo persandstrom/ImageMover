@@ -1,13 +1,7 @@
-# ImageMover
+# FileBasket
 This is created for personal use only. Use it at your own risk.
 
-Observer a directory for new files. If the file is an image or a movie it will automatically be renamed and copied to an organized folder structure. 
-
-
-# Dependencies:
-
-- PIL, install with 'pip install pil'
-- dateutil, install with 'pip install python-dateutil' 
+Observs a directory for new files. If the file is an image or a movie it will automatically be renamed and copied to an organized folder structure. 
 
 
 # init.d script
@@ -17,19 +11,19 @@ Observer a directory for new files. If the file is an image or a movie it will a
 #!/bin/bash
 
 ### BEGIN INIT INFO
-# Provides:          ImageMover
+# Provides:          FileBasket
 # Required-Start:    
 # Required-Stop:     
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Start/stops the ImageMover
-# Description:       Start/stops the ImageMover
+# Short-Description: Start/stops FileBasket
+# Description:       Start/stops FileBasket
 ### END INIT INFO
 
 # Change the next 3 lines to suit where you install your script and what you want to call it
-DIR=/home/per/image_mover
-DAEMON=$DIR/image_mover.py
-DAEMON_NAME=image_mover
+DIR=/home/per/file_basket
+DAEMON=$DIR/file_basket.py
+DAEMON_NAME=file_basket
 
 # This next line determines what user the script runs as.
 # Root generally not recommended but necessary if you are using the Raspberry Pi GPIO from Python.
@@ -74,3 +68,4 @@ esac
 exit 0
 
 ```
+
